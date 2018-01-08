@@ -1,0 +1,125 @@
+var gulp = require('gulp');
+var browserify = require('browserify');
+var source = require('vinyl-source-stream');
+var concat = require('gulp-concat');
+var uglify = require('gulp-uglify');
+var utilities = require('gulp-util');
+var del = require('del');
+var jshint = require('gulp-jshint');
+var distProduction = utilities.env.production;
+var lib = require('bower-files')({
+  "overrides":{
+    "materialize" : {
+      "main": [
+        "sass/materialize.scss",
+        "dist/css/materialize.css",
+        "dist/js/materialize.js"
+      ]
+    },
+    "bootstrap" : {
+      "main": [
+        "less/bootstrap.less",
+        "dist/css/bootstrap.css",
+        "dist/js/bootstrap.js"
+      ]
+    }
+  }
+});
+
+var browserSync = require('browser-sync').create();
+var sass = require('gulp-sass');
+var sourcemaps = require('gulp-sourcemaps');
+var babelify = require('babelify');
+
+gulp.task('jshint', function(){
+  return gulp.src(['js/*.js'])
+    .pipe(jshint())
+    .pipe(jshint.reporter('default'));
+});
+
+gulp.task('concatInterface', function() {
+  return gulp.src(['./js/*-interface.js'])
+  .pipe(concat('allConcat.js'))
+  .pipe(gulp.dest('./tmp'));
+});
+
+gulp.task('jsBrowserify', ['concatInterface'], function() {
+  return browserify({ entries: ['./tmp/allConcat.js'] })
+    .transform(babelify.configure({
+      presets: ["env"]
+    }))
+    .bundle()
+    .pipe(source('app.js'))
+    .pipe(gulp.dest('./dist/js'));
+});
+
+gulp.task('minifyScripts', ['jsBrowserify'], function(){
+  return gulp.src('./dist/js/app.js')
+    .pipe(uglify())
+    .pipe(gulp.dest('./dist/js'));
+});
+
+gulp.task('bowerJS', function () {
+  return gulp.src(lib.ext('js').files)
+    .pipe(concat('vendor.min.js'))
+    .pipe(uglify())
+    .pipe(gulp.dest('./dist/js'));
+});
+
+gulp.task('bowerCSS', function () {
+  return gulp.src(lib.ext('css').files)
+    .pipe(concat('vendor.css'))
+    .pipe(gulp.dest('./dist/css'));
+});
+
+gulp.task('bower', ['bowerJS', 'bowerCSS']);
+
+gulp.task("clean", function(){
+  return del(['dist', 'tmp']);
+});
+
+// We'll put this at the end of our file, since it will use our other tasks.
+gulp.task('dist', ['clean'], function(){
+  if (distProduction) {
+    gulp.start('minifyScripts');
+  } else {
+    gulp.start('jsBrowserify');
+  }
+  gulp.start('bower');
+  gulp.start('cssDist');
+});
+
+gulp.task('serve', ['dist'], function() {
+  browserSync.init({
+    server: {
+      baseDir: "./",
+      index: "index.html"
+    }
+  });
+
+  gulp.watch(['js/*.js'], ['jsDist']);
+  gulp.watch(['bower.json'], ['bowerDist']);
+  gulp.watch(['*.html'], ['htmlDist']);
+  gulp.watch('scss/*.scss', ['cssDist']);
+});
+
+gulp.task('jsDist', ['jsBrowserify', 'jshint'], function(){
+  browserSync.reload();
+});
+
+gulp.task('bowerDist', ['bower'], function(){
+  browserSync.reload();
+});
+
+gulp.task('htmlDist', ['bower'], function(){
+  browserSync.reload();
+});
+
+gulp.task('cssDist', ['bower'], function(){
+  return gulp.src('scss/*.scss')
+  .pipe(sourcemaps.init())
+  .pipe(sass())
+  .pipe(sourcemaps.write())
+  .pipe(gulp.dest('./dist/css'))
+  .pipe(browserSync.stream());
+});

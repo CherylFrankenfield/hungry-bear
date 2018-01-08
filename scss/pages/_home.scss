@@ -1,0 +1,12 @@
+// -----------------------------------------------------------------------------
+// This file contains styles that are specific to the home page.
+// -----------------------------------------------------------------------------
+#nasa-character, #carpenter-character, #js-character {
+  display: none;
+}
+
+.form-card {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
